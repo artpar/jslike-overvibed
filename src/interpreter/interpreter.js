@@ -2768,7 +2768,7 @@ export class Interpreter {
     // Add methods to prototype
     for (const [name, method] of Object.entries(methods)) {
       classConstructor.prototype[name] = function(...args) {
-        const result = interpreter.callMethodFunction(method, this, args, env);
+        const result = interpreter.callMethodFunction(method, this, args, env, superClass);
         // Unwrap explicit return marker
         if (result && result.__explicitReturn) {
           return result.value;
@@ -2841,6 +2841,9 @@ export class Interpreter {
     for (const field of classConstructor.__instanceFields || []) {
       const fieldEnv = new Environment(env);
       fieldEnv.define('this', instance);
+      if (classConstructor.__superClass) {
+        fieldEnv.define('super', this.createSuperBinding(classConstructor.__superClass, instance, false));
+      }
       const name = this.getClassFieldName(field, fieldEnv);
       instance[name] = field.value ? this.evaluate(field.value, fieldEnv) : undefined;
     }
@@ -2854,6 +2857,38 @@ export class Interpreter {
       return field.key.name;
     }
     return field.key.value;
+  }
+
+  createSuperBinding(superClass, thisContext, allowConstructor = false, afterSuper = null) {
+    const superConstructor = (...superArgs) => {
+      if (!allowConstructor) {
+        throw new ReferenceError("'super' keyword is unexpected here");
+      }
+      const result = this.initializeSuperClass(superClass, thisContext, superArgs);
+      if (afterSuper) {
+        afterSuper();
+      }
+      return result && result.__explicitReturn ? result.value : undefined;
+    };
+
+    superConstructor.__isSuperConstructor = true;
+    superConstructor.__superClass = superClass;
+
+    return new Proxy(superConstructor, {
+      get(target, prop, receiver) {
+        if (prop in target) {
+          return Reflect.get(target, prop, receiver);
+        }
+
+        const prototype = superClass?.prototype;
+        if (!prototype) {
+          return undefined;
+        }
+
+        const value = Reflect.get(prototype, prop, thisContext);
+        return typeof value === 'function' ? value.bind(thisContext) : value;
+      }
+    });
   }
 
   createMethodFunction(funcNode, env, className) {
@@ -2875,18 +2910,7 @@ export class Interpreter {
 
     // Bind 'super' if superClass exists
     if (superClass) {
-      // Create a super function that calls the parent constructor
-      const superFunc = (...superArgs) => {
-        const result = this.initializeSuperClass(superClass, thisContext, superArgs);
-        if (afterSuper) {
-          afterSuper();
-        }
-        return result && result.__explicitReturn ? result.value : undefined;
-      };
-      // Store both the function and mark it as super
-      superFunc.__isSuperConstructor = true;
-      superFunc.__superClass = superClass;
-      funcEnv.define('super', superFunc);
+      funcEnv.define('super', this.createSuperBinding(superClass, thisContext, true, afterSuper));
     }
 
     this.bindFunctionParameters(methodFunc.__params, args, funcEnv, thisContext);

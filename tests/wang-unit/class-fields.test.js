@@ -8,6 +8,7 @@ describe('Class Fields', () => {
   beforeEach(() => {
     resolver = new InMemoryModuleResolver();
     interpreter = new WangInterpreter({ moduleResolver: resolver });
+    interpreter.setVariable('Promise', Promise);
   });
 
   it('should initialize direct instance fields with arrow functions bound to this', async () => {
@@ -238,5 +239,188 @@ describe('Class Fields', () => {
       describe: 'base',
       keys: ['label', 'visit']
     });
+  });
+
+  it('should support super in prototype methods', async () => {
+    const result = await interpreter.execute(`
+      class Base {
+        validateDefaultLayout() {
+          return this.prefix + ':base';
+        }
+      }
+
+      class Child extends Base {
+        constructor() {
+          super();
+          this.prefix = 'child';
+        }
+
+        validateDefaultLayout() {
+          return super.validateDefaultLayout();
+        }
+      }
+
+      return new Child().validateDefaultLayout();
+    `);
+
+    expect(result).toBe('child:base');
+  });
+
+  it('should support super in arrow function class fields', async () => {
+    const result = await interpreter.execute(`
+      class Base {
+        validateDefaultLayout() {
+          return this.prefix + ':base';
+        }
+      }
+
+      class Child extends Base {
+        constructor() {
+          super();
+          this.prefix = 'child';
+        }
+
+        validateDefaultLayout = () => {
+          return super.validateDefaultLayout();
+        };
+      }
+
+      return new Child().validateDefaultLayout();
+    `);
+
+    expect(result).toBe('child:base');
+  });
+
+  it('should support super in async arrow function class fields in TypeScript mode', async () => {
+    const result = await interpreter.execute(`
+      class Base {
+        validateDefaultLayout() { return 'base'; }
+      }
+
+      class LoginFormComponent extends Base {
+        validateDefaultLayout = async () => {
+          await Promise.resolve();
+          return super.validateDefaultLayout();
+        }
+      }
+
+      const component = new LoginFormComponent();
+      return await component.validateDefaultLayout();
+    `, undefined, { sourcePath: '/virtual/repro.ts', typescript: true });
+
+    expect(result).toBe('base');
+  });
+
+  it('should bind super in arrow field methods to the derived instance', async () => {
+    const result = await interpreter.execute(`
+      class Base {
+        readValue() {
+          return this.value;
+        }
+      }
+
+      class Child extends Base {
+        value = 42;
+        read = () => super.readValue();
+      }
+
+      return new Child().read();
+    `);
+
+    expect(result).toBe(42);
+  });
+
+  it('should support computed super method calls in arrow function class fields', async () => {
+    const result = await interpreter.execute(`
+      const methodName = 'readValue';
+
+      class Base {
+        readValue() {
+          return this.value;
+        }
+      }
+
+      class Child extends Base {
+        value = 9;
+        read = () => super[methodName]();
+      }
+
+      return new Child().read();
+    `);
+
+    expect(result).toBe(9);
+  });
+
+  it('should await async parent methods called through super in arrow fields', async () => {
+    const result = await interpreter.execute(`
+      class Base {
+        async readValue() {
+          await Promise.resolve();
+          return this.value;
+        }
+      }
+
+      class Child extends Base {
+        value = 11;
+        read = async () => {
+          return await super.readValue();
+        }
+      }
+
+      return await new Child().read();
+    `);
+
+    expect(result).toBe(11);
+  });
+
+  it('should support multi-level super chains ending in an arrow function class field', async () => {
+    const result = await interpreter.execute(`
+      class GrandParent {
+        describe() {
+          return this.label + ':grand';
+        }
+      }
+
+      class Parent extends GrandParent {
+        describe() {
+          return super.describe() + ':parent';
+        }
+      }
+
+      class Child extends Parent {
+        label = 'child';
+        describeAll = () => super.describe() + ':child';
+      }
+
+      return new Child().describeAll();
+    `);
+
+    expect(result).toBe('child:grand:parent:child');
+  });
+
+  it('should preserve constructor super calls while enabling method super calls', async () => {
+    const result = await interpreter.execute(`
+      class Base {
+        constructor(value) {
+          this.value = value;
+        }
+
+        readValue() {
+          return this.value;
+        }
+      }
+
+      class Child extends Base {
+        constructor() {
+          super(13);
+        }
+
+        read = () => super.readValue();
+      }
+
+      return new Child().read();
+    `);
+
+    expect(result).toBe(13);
   });
 });
