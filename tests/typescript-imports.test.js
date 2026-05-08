@@ -2,6 +2,159 @@ import { describe, it, expect } from 'vitest';
 import { execute, createEnvironment } from '../src/index.js';
 
 describe('TypeScript module execution', () => {
+  it('executes import equals require declarations through the module resolver', async () => {
+    const moduleResolver = {
+      async resolve(modulePath, fromPath) {
+        expect(fromPath).toBe('/virtual/repro.ts');
+        if (modulePath === 'constants') {
+          return {
+            path: '/virtual/constants.ts',
+            code: 'export const OK = true; export default { OK };'
+          };
+        }
+        return null;
+      }
+    };
+
+    const result = await execute(
+      'import exp = require("constants"); return exp.OK && exp.default.OK;',
+      createEnvironment(),
+      {
+        moduleResolver,
+        sourcePath: '/virtual/repro.ts'
+      }
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('binds import equals require declarations to native module exports', async () => {
+    const constants = { OK: true, name: 'constants' };
+    const calls = [];
+    const moduleResolver = {
+      async resolve(modulePath, fromPath) {
+        calls.push({ modulePath, fromPath });
+        if (modulePath === 'constants') {
+          return {
+            path: 'constants',
+            exports: constants
+          };
+        }
+        return null;
+      }
+    };
+
+    const result = await execute(
+      'import exp = require("constants"); exp === constants && exp.OK',
+      (() => {
+        const env = createEnvironment();
+        env.define('constants', constants);
+        return env;
+      })(),
+      {
+        moduleResolver,
+        sourcePath: '/virtual/repro.ts'
+      }
+    );
+
+    expect(result).toBe(true);
+    expect(calls).toEqual([
+      { modulePath: 'constants', fromPath: '/virtual/repro.ts' }
+    ]);
+  });
+
+  it('shares import equals module cache with ESM imports', async () => {
+    const calls = [];
+    const moduleResolver = {
+      async resolve(modulePath, fromPath) {
+        calls.push({ modulePath, fromPath });
+        if (modulePath === './dep.ts') {
+          return {
+            path: '/virtual/dep.ts',
+            code: 'export const value: number = 21;'
+          };
+        }
+        return null;
+      }
+    };
+
+    const result = await execute(
+      `
+        import dep = require("./dep.ts");
+        import { value } from "./dep.ts";
+        dep.value + value
+      `,
+      createEnvironment(),
+      {
+        moduleResolver,
+        sourcePath: '/virtual/main.ts'
+      }
+    );
+
+    expect(result).toBe(42);
+    expect(calls).toEqual([
+      { modulePath: './dep.ts', fromPath: '/virtual/main.ts' }
+    ]);
+  });
+
+  it('exports values from export import equals declarations', async () => {
+    const moduleResolver = {
+      async resolve(modulePath) {
+        if (modulePath === './entry.ts') {
+          return {
+            path: '/virtual/entry.ts',
+            code: 'export import constants = require("constants");'
+          };
+        }
+        if (modulePath === 'constants') {
+          return {
+            path: 'constants',
+            exports: { OK: true }
+          };
+        }
+        return null;
+      }
+    };
+
+    const result = await execute(
+      'import { constants } from "./entry.ts"; constants.OK',
+      createEnvironment(),
+      {
+        moduleResolver,
+        sourcePath: '/virtual/main.ts'
+      }
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('does not resolve type-only import equals declarations', async () => {
+    const moduleResolver = {
+      async resolve(modulePath) {
+        throw new Error(`type-only import equals should not resolve: ${modulePath}`);
+      }
+    };
+
+    const result = await execute(
+      'import type Constants = require("constants"); const value: number = 5; value',
+      createEnvironment(),
+      {
+        moduleResolver,
+        sourcePath: '/virtual/main.ts'
+      }
+    );
+
+    expect(result).toBe(5);
+  });
+
+  it('keeps qualified-name import equals aliases unsupported at runtime', async () => {
+    await expect(execute(
+      'const NS = { Foo: 1 }; import Foo = NS.Foo; Foo',
+      createEnvironment(),
+      { sourcePath: '/virtual/main.ts' }
+    )).rejects.toThrow('Unsupported runtime TypeScript syntax: TSImportEqualsDeclaration');
+  });
+
   it('executes imported .ts modules with erased type declarations and annotations', async () => {
     const moduleResolver = {
       async resolve(modulePath) {

@@ -132,8 +132,7 @@ describe('TypeScript erasure semantics', () => {
 
   it.each([
     ['namespace', 'namespace Config { const value = 1 } Config.value', 'TSModuleDeclaration'],
-    ['export assignment', 'const value = 1; export = value;', 'TSExportAssignment'],
-    ['import equals', 'import fs = require("fs"); const value = 1; value', 'TSImportEqualsDeclaration']
+    ['export assignment', 'const value = 1; export = value;', 'TSExportAssignment']
   ])('throws clear unsupported runtime error for %s', async (_name, code, nodeType) => {
     await expect(executeTS(code)).rejects.toThrow(`Unsupported runtime TypeScript syntax: ${nodeType}`);
   });

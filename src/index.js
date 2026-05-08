@@ -64,6 +64,7 @@ function containsModuleDeclarations(node) {
   if (!node || typeof node !== 'object') return false;
 
   if (node.type === 'ImportDeclaration' ||
+      node.type === 'TSImportEqualsDeclaration' ||
       node.type === 'ExportNamedDeclaration' ||
       node.type === 'ExportDefaultDeclaration' ||
       node.type === 'ExportAllDeclaration') {

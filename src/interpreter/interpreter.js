@@ -470,8 +470,12 @@ export class Interpreter {
       return undefined;
     }
 
-    if (node.type === 'TSExportAssignment' || node.type === 'TSImportEqualsDeclaration') {
+    if (node.type === 'TSExportAssignment') {
       throw createUnsupportedTypeScriptRuntimeError(node);
+    }
+
+    if (node.type === 'TSImportEqualsDeclaration') {
+      return await this.evaluateTSImportEqualsDeclaration(node, env);
     }
 
     if (node.type === 'TSEnumDeclaration') {
@@ -1148,8 +1152,12 @@ export class Interpreter {
       return undefined;
     }
 
-    if (node.type === 'TSExportAssignment' || node.type === 'TSImportEqualsDeclaration') {
+    if (node.type === 'TSExportAssignment') {
       throw createUnsupportedTypeScriptRuntimeError(node);
+    }
+
+    if (node.type === 'TSImportEqualsDeclaration') {
+      return this.evaluateTSImportEqualsDeclaration(node, env);
     }
 
     if (node.type === 'TSEnumDeclaration') {
@@ -2269,6 +2277,13 @@ export class Interpreter {
       return undefined;
     }
 
+    const moduleExports = await this.loadModuleExports(modulePath);
+
+    this.bindImportSpecifiers(node, env, modulePath, moduleExports);
+    return undefined;
+  }
+
+  async loadModuleExports(modulePath) {
     // Check if module resolver is configured
     if (!this.moduleResolver) {
       throw new Error('Module resolver not configured - cannot import modules');
@@ -2299,8 +2314,7 @@ export class Interpreter {
         : resolution.path || modulePath;
       this.moduleResolutionCache.set(resolutionCacheKey, resolvedPath);
       if (this.moduleCache.has(resolvedPath)) {
-        moduleExports = this.moduleCache.get(resolvedPath);
-        return this.bindImportSpecifiers(node, env, modulePath, moduleExports);
+        return this.moduleCache.get(resolvedPath);
       }
 
       // Handle native module exports (for libraries like React)
@@ -2341,7 +2355,33 @@ export class Interpreter {
       }
     }
 
-    this.bindImportSpecifiers(node, env, modulePath, moduleExports);
+    return moduleExports;
+  }
+
+  async evaluateTSImportEqualsDeclaration(node, env) {
+    if (node.importKind === 'type') {
+      return undefined;
+    }
+
+    const localName = node.id?.name;
+    const moduleReference = node.moduleReference;
+
+    if (moduleReference?.type !== 'TSExternalModuleReference') {
+      throw createUnsupportedTypeScriptRuntimeError(node);
+    }
+
+    const modulePath = moduleReference.expression?.value;
+    if (typeof modulePath !== 'string') {
+      throw createUnsupportedTypeScriptRuntimeError(node);
+    }
+
+    const moduleExports = await this.loadModuleExports(modulePath);
+    env.define(localName, moduleExports);
+
+    if (node.isExport) {
+      this.moduleExports[localName] = moduleExports;
+    }
+
     return undefined;
   }
 
