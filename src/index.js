@@ -132,7 +132,8 @@ export async function execute(code, env = null, options = {}) {
       abortSignal: options.abortSignal,
       executionController: controller,
       currentModulePath: options.sourcePath,
-      isTypeScriptModule: options.typescript || options.tsx || isTypeScriptPath(options.sourcePath)
+      isTypeScriptModule: options.typescript || options.tsx || isTypeScriptPath(options.sourcePath),
+      sourceCode: code
     });
 
     // Use async evaluation if:

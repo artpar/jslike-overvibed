@@ -44,6 +44,43 @@ export class Environment {
     return getter();
   }
 
+  getRoot() {
+    let env = this;
+    while (env.parent) {
+      env = env.parent;
+    }
+    return env;
+  }
+
+  getOwnBinding(name) {
+    if (this.liveBindings.has(name)) {
+      return this.liveBindings.get(name)();
+    }
+    if (this.vars.has(name)) {
+      return this.vars.get(name);
+    }
+    return undefined;
+  }
+
+  getGlobalObject() {
+    const root = this.getRoot();
+    if (!root.vars.has('globalThis') && !root.liveBindings.has('globalThis')) {
+      return undefined;
+    }
+    const globalObject = root.getOwnBinding('globalThis');
+    return (globalObject !== null && (typeof globalObject === 'object' || typeof globalObject === 'function'))
+      ? globalObject
+      : undefined;
+  }
+
+  hasGlobalProperty(name) {
+    if (name === 'globalThis') {
+      return false;
+    }
+    const globalObject = this.getGlobalObject();
+    return globalObject !== undefined && name in globalObject;
+  }
+
   get(name) {
     if (this.liveBindings.has(name)) {
       return this.liveBindings.get(name)();
@@ -53,6 +90,9 @@ export class Environment {
     }
     if (this.parent) {
       return this.parent.get(name);
+    }
+    if (this.hasGlobalProperty(name)) {
+      return this.getGlobalObject()[name];
     }
     throw new ReferenceError(`Variable "${name}" is not defined`);
   }
@@ -70,11 +110,17 @@ export class Environment {
     if (this.parent) {
       return this.parent.set(name, value);
     }
+    if (this.hasGlobalProperty(name)) {
+      this.getGlobalObject()[name] = value;
+      return value;
+    }
     throw new ReferenceError(`Variable "${name}" is not defined`);
   }
 
   has(name) {
-    return this.vars.has(name) || this.liveBindings.has(name) || (this.parent ? this.parent.has(name) : false);
+    return this.vars.has(name) ||
+      this.liveBindings.has(name) ||
+      (this.parent ? this.parent.has(name) : this.hasGlobalProperty(name));
   }
 
   // For let/const block scoping

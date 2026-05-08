@@ -324,6 +324,7 @@ export class Interpreter {
     this.moduleExports = {};  // Track exports in current module
     this.currentModulePath = options.currentModulePath;
     this.isTypeScriptModule = options.isTypeScriptModule || false;
+    this.sourceCode = options.sourceCode || '';
     this.runtimeIdentifierReferences = null;
     this.abortSignal = options.abortSignal;
     this.executionController = options.executionController;
@@ -1966,6 +1967,26 @@ export class Interpreter {
     return obj;
   }
 
+  getSourceForNode(node) {
+    if (typeof this.sourceCode !== 'string' ||
+        typeof node?.start !== 'number' ||
+        typeof node?.end !== 'number') {
+      return undefined;
+    }
+    return this.sourceCode.slice(node.start, node.end);
+  }
+
+  installFunctionToString(wrappedFunc, funcMetadata) {
+    const nativeToString = Function.prototype.toString.bind(wrappedFunc);
+    Object.defineProperty(wrappedFunc, 'toString', {
+      configurable: true,
+      writable: true,
+      value() {
+        return funcMetadata.source || nativeToString();
+      }
+    });
+  }
+
   evaluateFunctionExpression(node, env) {
     const isArrow = node.type === 'ArrowFunctionExpression';
 
@@ -1988,7 +2009,8 @@ export class Interpreter {
       expression: isArrow && node.expression,
       async: node.async || false,
       isArrow: isArrow,
-      capturedThis: isArrow ? capturedThis : undefined
+      capturedThis: isArrow ? capturedThis : undefined,
+      source: this.getSourceForNode(node)
     };
 
     // Wrap in actual JavaScript function so it can be called by native code
@@ -2007,6 +2029,7 @@ export class Interpreter {
     // Preserve metadata for JSLike's internal use
     wrappedFunc.__isFunction = true;
     wrappedFunc.__metadata = funcMetadata;
+    this.installFunctionToString(wrappedFunc, funcMetadata);
 
     return wrappedFunc;
   }
@@ -2291,7 +2314,8 @@ export class Interpreter {
       body: node.body,
       closure: env,
       expression: false,
-      async: node.async || false
+      async: node.async || false,
+      source: this.getSourceForNode(node)
     };
 
     // Wrap in actual JavaScript function so it can be called by native code
@@ -2310,6 +2334,7 @@ export class Interpreter {
     // Preserve metadata for JSLike's internal use
     wrappedFunc.__isFunction = true;
     wrappedFunc.__metadata = funcMetadata;
+    this.installFunctionToString(wrappedFunc, funcMetadata);
 
     env.define(node.id.name, wrappedFunc);
     return undefined;
@@ -2390,7 +2415,8 @@ export class Interpreter {
           currentModulePath: resolvedPath,
           isTypeScriptModule: isTypeScriptPath(resolvedPath),
           abortSignal: this.abortSignal,
-          executionController: this.executionController
+          executionController: this.executionController,
+          sourceCode: moduleCode
         });
         moduleInterpreter.moduleCache = this.moduleCache;  // Share cache
 
