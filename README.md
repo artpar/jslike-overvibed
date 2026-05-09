@@ -2,6 +2,8 @@
 
 **Production-ready JavaScript interpreter** with full ES6+ support, native JSX parsing, and React integration. JSLike executes real JavaScript code with a custom runtime environment, supporting modern ES6+ features including classes, destructuring, template literals, JSX, and more.
 
+**Playground:** https://artpar.github.io/jslike/
+
 ## Features
 
 - **Production-Ready** - Handles files of any size, tested with 1000+ tests

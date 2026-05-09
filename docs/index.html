@@ -43,6 +43,7 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         button {
@@ -83,6 +84,10 @@
             border-radius: 4px;
             font-size: 14px;
             cursor: pointer;
+        }
+
+        .mode-select {
+            min-width: 132px;
         }
 
         main {
@@ -334,13 +339,31 @@
         <div class="toolbar">
             <select id="examples">
                 <option value="">Load Example...</option>
-                <option value="hello">Hello World</option>
-                <option value="functions">Functions</option>
-                <option value="loops">Loops</option>
-                <option value="arrays">Arrays & Objects</option>
-                <option value="algorithms">Algorithms</option>
-                <option value="classes">Classes</option>
-                <option value="async">Async/Await</option>
+                <optgroup label="Basics">
+                    <option value="hello">Hello World</option>
+                    <option value="functions">Functions</option>
+                    <option value="loops">Loops</option>
+                    <option value="arrays">Arrays & Objects</option>
+                    <option value="destructuring">Destructuring & Spread</option>
+                </optgroup>
+                <optgroup label="Modern JS">
+                    <option value="algorithms">Algorithms</option>
+                    <option value="classes">Classes</option>
+                    <option value="async">Async/Await</option>
+                    <option value="promises">Promise Chaining</option>
+                    <option value="modules">ES Modules</option>
+                    <option value="errors">Error Handling</option>
+                </optgroup>
+                <optgroup label="JSX / TypeScript">
+                    <option value="jsx">JSX Element Tree</option>
+                    <option value="typescript">TypeScript Syntax</option>
+                    <option value="tsx">TSX Component</option>
+                </optgroup>
+            </select>
+            <select id="syntaxMode" class="mode-select" title="Syntax mode">
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="tsx">TSX</option>
             </select>
             <button onclick="runCode()" id="runBtn">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -663,6 +686,30 @@ for (const user of data.users) {
 const { name, age } = person;
 console.log("\\nDestructured:", name, age);`,
 
+            destructuring: `// Destructuring and Spread
+const users = [
+    { name: "Ada", score: 98 },
+    { name: "Grace", score: 91 },
+    { name: "Linus", score: 87 }
+];
+
+const [leader, ...rest] = users;
+console.log("Leader:", leader.name);
+console.log("Others:", rest.map(user => user.name).join(", "));
+
+const enriched = users.map(({ name, score }, index) => ({
+    rank: index + 1,
+    name,
+    score,
+    passed: score >= 90
+}));
+
+console.log("Enriched:", enriched);
+
+const defaults = { role: "viewer", active: true };
+const profile = { ...defaults, name: leader.name, role: "admin" };
+console.log("Profile:", profile);`,
+
             algorithms: `// Algorithms Demo
 
 // Fibonacci sequence
@@ -834,8 +881,166 @@ async function main() {
     console.log("\\nDone!");
 }
 
-main();`
+main();`,
+
+            promises: `// Promise Chaining
+function wait(ms, value) {
+    return new Promise(resolve => setTimeout(() => resolve(value), ms));
+}
+
+const first = await wait(50, "parsed");
+const second = await Promise.resolve("executed");
+console.log(first + " and " + second);
+
+const total = await Promise.all([
+    wait(25, 2),
+    wait(25, 3),
+    wait(25, 5)
+]).then(values => values.reduce((sum, value) => sum + value, 0));
+
+console.log("sum:", total);`,
+
+            modules: `// ES Modules with the playground resolver
+import { sum, average } from "./math.js";
+import { users } from "./users.js";
+
+const scores = users.map(user => user.score);
+
+console.log("users:", users.map(user => user.name).join(", "));
+console.log("total:", sum(scores));
+console.log("average:", average(scores));`,
+
+            errors: `// Error Handling
+function parseScore(value) {
+    const score = Number(value);
+
+    if (Number.isNaN(score)) {
+        throw new TypeError("Score must be numeric");
+    }
+
+    return score;
+}
+
+for (const input of ["42", "n/a", "99"]) {
+    try {
+        console.log("score:", parseScore(input));
+    } catch (error) {
+        console.warn("ignored", input + ":", error.message);
+    } finally {
+        console.info("checked:", input);
+    }
+}`,
+
+            jsx: `// JSX Element Tree
+function Badge({ label, tone }) {
+    return <span className={"badge badge-" + tone}>{label}</span>;
+}
+
+const view = (
+    <section className="panel">
+        <h1>JSX works here</h1>
+        <Badge label="No transform step" tone="green" />
+    </section>
+);
+
+console.log("root:", view.type);
+console.log("child component:", view.props.children[1].type.name);
+
+view;`,
+
+            typescript: `// TypeScript Syntax
+type User = {
+    name: string;
+    score: number;
+};
+
+const users: User[] = [
+    { name: "Ada", score: 98 },
+    { name: "Grace", score: 91 },
+    { name: "Linus", score: 87 }
+];
+
+function topUser(items: User[]): User {
+    return items.reduce((best, user) => user.score > best.score ? user : best);
+}
+
+console.log("Top user:", topUser(users).name);`,
+
+            tsx: `// TSX Component
+type ButtonProps = {
+    label: string;
+    count: number;
+};
+
+function Button(props: ButtonProps) {
+    return (
+        <button className="primary">
+            {props.label}: {props.count}
+        </button>
+    );
+}
+
+const element = <Button label="Runs" count={3} />;
+
+console.log("component:", element.type.name);
+console.log("props:", element.props);
+
+element;`
         };
+
+        const exampleModes = {
+            typescript: 'typescript',
+            tsx: 'tsx'
+        };
+
+        const playgroundModules = {
+            '/playground/math.js': `export function sum(values) {
+    return values.reduce((total, value) => total + value, 0);
+}
+
+export function average(values) {
+    return Math.round(sum(values) / values.length);
+}`,
+            '/playground/users.js': `export const users = [
+    { name: "Ada", score: 98 },
+    { name: "Grace", score: 91 },
+    { name: "Linus", score: 87 }
+];`
+        };
+
+        function getSyntaxOptions() {
+            const mode = document.getElementById('syntaxMode').value;
+            const sourcePath = mode === 'tsx'
+                ? '/playground/main.tsx'
+                : mode === 'typescript'
+                    ? '/playground/main.ts'
+                    : '/playground/main.js';
+
+            return {
+                sourcePath,
+                typescript: mode === 'typescript',
+                tsx: mode === 'tsx',
+                moduleResolver: createPlaygroundModuleResolver()
+            };
+        }
+
+        function createPlaygroundModuleResolver() {
+            return {
+                async resolve(modulePath, fromPath = '/playground/main.js') {
+                    const resolvedPath = new URL(modulePath, 'file://' + fromPath).pathname;
+                    const code = playgroundModules[resolvedPath];
+
+                    if (!code) {
+                        return null;
+                    }
+
+                    return {
+                        path: resolvedPath,
+                        code
+                    };
+                }
+            };
+        }
 
         // Initialize Monaco Editor
         require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
@@ -889,10 +1094,23 @@ main();`
         // Example selector
         document.getElementById('examples').addEventListener('change', function(e) {
             if (e.target.value && examples[e.target.value]) {
+                document.getElementById('syntaxMode').value = exampleModes[e.target.value] || 'javascript';
+                updateEditorLanguage();
                 editor.setValue(examples[e.target.value]);
                 e.target.value = '';
             }
         });
+
+        document.getElementById('syntaxMode').addEventListener('change', updateEditorLanguage);
+
+        function updateEditorLanguage() {
+            if (!editor || !window.monaco) return;
+
+            const mode = document.getElementById('syntaxMode').value;
+            const model = editor.getModel();
+            const language = mode === 'javascript' ? 'javascript' : 'typescript';
+            monaco.editor.setModelLanguage(model, language);
+        }
 
         // Divider resize
         const divider = document.getElementById('divider');
@@ -943,47 +1161,63 @@ main();`
             }
         }
 
+        function formatValue(value) {
+            if (typeof value === 'string') {
+                return value;
+            }
+
+            if (typeof value === 'function') {
+                return value.name ? `[Function ${value.name}]` : '[Function]';
+            }
+
+            if (typeof value === 'symbol') {
+                return value.toString();
+            }
+
+            if (value && typeof value === 'object') {
+                try {
+                    return JSON.stringify(value);
+                } catch (error) {
+                    return Object.prototype.toString.call(value);
+                }
+            }
+
+            return String(value);
+        }
+
         // Run code
         async function runCode() {
             const code = editor.getValue();
+            const options = getSyntaxOptions();
             clearOutput();
 
             const runBtn = document.getElementById('runBtn');
             runBtn.disabled = true;
             setStatus('Running...', true);
 
-            // Capture console output
-            const logs = [];
             const customConsole = {
                 log: (...args) => {
-                    const text = args.map(a =>
-                        typeof a === 'object' ? JSON.stringify(a) : String(a)
-                    ).join(' ');
+                    const text = args.map(formatValue).join(' ');
                     appendOutput(text);
                 },
                 error: (...args) => {
-                    const text = args.map(a =>
-                        typeof a === 'object' ? JSON.stringify(a) : String(a)
-                    ).join(' ');
+                    const text = args.map(formatValue).join(' ');
                     appendOutput(text, 'output-error');
                 },
                 warn: (...args) => {
-                    const text = args.map(a =>
-                        typeof a === 'object' ? JSON.stringify(a) : String(a)
-                    ).join(' ');
+                    const text = args.map(formatValue).join(' ');
                     appendOutput(text, 'output-warn');
                 },
                 info: (...args) => {
-                    const text = args.map(a =>
-                        typeof a === 'object' ? JSON.stringify(a) : String(a)
-                    ).join(' ');
+                    const text = args.map(formatValue).join(' ');
                     appendOutput(text, 'output-info');
                 }
             };
 
             try {
                 // Parse code to get AST
-                currentAST = JSLike.parse(code);
+                currentAST = null;
+                currentAST = JSLike.parse(code, options);
                 displayAST(currentAST);
 
                 // Create environment with custom console
@@ -992,12 +1226,12 @@ main();`
 
                 // Execute
                 const startTime = performance.now();
-                const result = await JSLike.execute(code, env);
+                const result = await JSLike.execute(code, env, options);
                 const endTime = performance.now();
 
                 // Show result if not undefined
                 if (result !== undefined) {
-                    appendOutput('=> ' + (typeof result === 'object' ? JSON.stringify(result) : String(result)), 'output-success');
+                    appendOutput('=> ' + formatValue(result), 'output-success');
                 }
 
                 setStatus(`Completed in ${(endTime - startTime).toFixed(2)}ms`);
