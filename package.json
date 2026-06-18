@@ -1,6 +1,6 @@
 {
   "name": "jslike",
-  "version": "1.8.11",
+  "version": "1.8.12",
   "description": "Production-ready JavaScript interpreter with full ES6+ support using Acorn parser",
   "homepage": "https://artpar.github.io/jslike/",
   "repository": {
