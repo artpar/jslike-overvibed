@@ -1,655 +1,125 @@
-# JSLike
+# jslike-overvibed
 
-**Production-ready JavaScript interpreter** with full ES6+ support, native JSX parsing, and React integration. JSLike executes real JavaScript code with a custom runtime environment, supporting modern ES6+ features including classes, destructuring, template literals, JSX, and more.
+`jslike-overvibed` is a fork of JSLike where branch decisions are delegated to a local VibeThink model.
 
-**Playground:** https://artpar.github.io/jslike/
+The interpreter still evaluates each condition expression normally, but before choosing the branch it asks VibeThink whether the condition should take the true path. That makes ordinary JavaScript control flow model-mediated.
 
-## Features
+## What Is Overvibed
 
-- **Production-Ready** - Handles files of any size, tested with 1000+ tests
-- **Full ES6+ JavaScript Support** - Classes, destructuring, template literals, spread operator, arrow functions
-- **Native JSX Support** - Parse and execute JSX without pre-transformation
-- **TypeScript & TSX Module Support** - Execute JS-compatible TypeScript syntax directly from `.ts`, `.tsx`, `.mts`, and `.cts` modules
-- **React Integration** - Import React hooks and components via moduleResolver
-- **CSP-Safe** - Tree-walking interpreter, no eval() or new Function()
-- **ASI (Automatic Semicolon Insertion)** - Write JavaScript naturally without mandatory semicolons
-- **Acorn Parser** - Battle-tested parser used by webpack, ESLint, and major tools
-- **Zero Runtime Dependencies** - Parser bundled, no npm install needed after build
-- **REPL & CLI** - Interactive development and direct file execution
+These condition sites go through VibeThink:
 
-## Installation
+- `if`
+- `while`
+- `do while`
+- `for` test expressions
+- ternary condition tests
 
-```bash
-npm install jslike
+These keep normal JavaScript behavior:
+
+- `&&`
+- `||`
+- `??`
+
+The model sees both the condition source and the evaluated JavaScript value. The final boolean is extracted from `choices[0].message.content`; VibeThink reasoning is kept for tracing.
+
+## Run VibeThink
+
+```sh
+.venv/bin/python -m mlx_lm server \
+  --model mlx-community/VibeThinker-3B-4bit \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --max-tokens 8096 \
+  --temp 0.6 \
+  --top-p 0.95
 ```
 
-Or for development:
+The default endpoint is:
 
-```bash
-git clone https://github.com/artpar/jslike.git
-cd jslike
+```text
+http://127.0.0.1:8080/v1/chat/completions
+```
+
+## Try It
+
+```sh
 npm install
-npm run build
+node --input-type=module -e "import { execute } from './src/index.js'; const result = await execute(\"let out = 'unset'; if (true) { out = 'true'; } else { out = 'false'; } out\"); console.log(result);"
 ```
 
-## Quick Start
+Trace every model-routed branch:
 
-### Programmatic Usage
+```sh
+JSLIKE_VIBETHINK_TRACE=1 node --input-type=module -e "import { execute } from './src/index.js'; await execute(\"if (true) { 'yes' } else { 'no' }\");"
+```
 
-```javascript
-import { execute, createEnvironment } from 'jslike';
+Example trace:
 
-// Simple execution
+```text
+[vibethink:condition] {"source":"true","value":"true","jsTruthiness":true,"token":"T","chosenBranch":true}
+```
+
+## Programmatic Tracing
+
+```js
+import { execute } from './src/index.js';
+
+const trace = [];
+
 const result = await execute(`
-  const greeting = "Hello";
-  const name = "World";
-  greeting + ", " + name + "!"
-`);
-console.log(result); // "Hello, World!"
-```
+  const arr = [1, 3, 5, 7, 9, 11, 13, 15];
+  const target = 11;
+  let lo = 0;
+  let hi = arr.length - 1;
+  let found = -1;
 
-### JSX Support
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const value = arr[mid];
 
-```javascript
-import { execute } from 'jslike';
-
-const element = await execute(`
-  function Button({ label, onClick }) {
-    return <button className="btn" onClick={onClick}>{label}</button>;
-  }
-
-  <div className="container">
-    <h1>Welcome</h1>
-    <Button label="Click me" onClick={() => console.log('clicked')} />
-  </div>
-`);
-
-// element is a React-compatible element object:
-// { $$typeof: Symbol(react.element), type: 'div', props: {...}, ... }
-```
-
-### React Integration
-
-```javascript
-import { execute, createEnvironment } from 'jslike';
-import * as React from 'react';
-
-// Create module resolver for React imports
-const moduleResolver = {
-  async resolve(modulePath) {
-    if (modulePath === 'react') {
-      return { exports: React };  // Return native module exports
+    if (value === target) {
+      found = mid;
+      break;
+    } else if (value < target) {
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
     }
-    return null;
-  }
-};
-
-// Create environment with React for JSX
-const env = createEnvironment();
-env.define('React', React);
-
-// Execute with React hooks
-const component = await execute(`
-  import { useState, useEffect } from 'react';
-
-  function Counter() {
-    const [count, setCount] = useState(0);
-
-    useEffect(() => {
-      document.title = \`Count: \${count}\`;
-    }, [count]);
-
-    return (
-      <div>
-        <p>Count: {count}</p>
-        <button onClick={() => setCount(count + 1)}>+</button>
-      </div>
-    );
   }
 
-  <Counter />
-`, env, { moduleResolver });
+  found
+`, null, { vibethinkConditionLog: trace });
+
+console.log({ result, trace });
 ```
 
-### CLI Usage
+Trace entries include:
 
-```bash
-# Run a file
-npx jslike myfile.js
+- `source`
+- `value`
+- `valueText`
+- `jsTruthiness`
+- `token`
+- `raw`
+- `reasoning`
+- `chosenBranch`
 
-# Interactive REPL
-npx jslike --repl
-```
+## Configuration
 
-## Module System
+- `vibethinkConditionals: false` or `JSLIKE_VIBETHINK_CONDITIONALS=0` disables model-mediated branching.
+- `vibethinkEndpoint` or `JSLIKE_VIBETHINK_ENDPOINT` overrides the endpoint.
+- `vibethinkModel` or `JSLIKE_VIBETHINK_MODEL` includes a model in the request body.
+- `vibethinkMaxTokens` or `JSLIKE_VIBETHINK_MAX_TOKENS` controls request `max_tokens`; default is `256`.
+- `vibethinkConditionTrace: true` or `JSLIKE_VIBETHINK_TRACE=1` logs trace lines to stderr.
+- `vibethinkConditionLog: []` collects trace entries.
+- `vibethinkConditionLogger(entry)` receives each trace entry.
+- `vibethinkConditionEvaluator` injects a custom async evaluator.
 
-JSLike supports ES6 imports with a flexible module resolver:
+## Behavior Notes
 
-### Native Module Exports (React, lodash, etc.)
+This is intentionally not a reliable JavaScript runtime.
 
-```javascript
-const moduleResolver = {
-  async resolve(modulePath) {
-    // Return native JavaScript objects directly
-    if (modulePath === 'react') {
-      return { exports: React };
-    }
-    if (modulePath === 'lodash') {
-      return { exports: _ };
-    }
-    return null;
-  }
-};
-```
+Classical algorithms become probes for model consistency. Binary search, for example, works only if the model consistently agrees with the evaluated comparisons. When it drifts, the algorithm drifts with it.
 
-### Code Modules (parsed and executed)
+Sync interpreter calls cannot use VibeThink conditionals. Use `execute()`, which routes execution through the async interpreter when this feature is enabled.
 
-```javascript
-const moduleResolver = {
-  async resolve(modulePath, fromPath) {
-    if (modulePath === './utils') {
-      return {
-        path: '/virtual/project/utils.js',
-        code: `
-          export function double(x) { return x * 2; }
-          export const PI = 3.14159;
-        `
-      };
-    }
-    return null;
-  }
-};
-```
-
-`fromPath` is the path of the importing module. For top-level code, pass `sourcePath` to `execute()` so relative imports have a deterministic root. For nested imports, JSLike passes the resolved module `path` returned by the resolver.
-
-```javascript
-const files = {
-  '/virtual/project/main.ts': `
-    import { user } from './user.ts';
-    user.name
-  `,
-  '/virtual/project/user.ts': `
-    type User = { name: string };
-    export const user: User = { name: 'Ada' };
-  `
-};
-
-const moduleResolver = {
-  async resolve(modulePath, fromPath) {
-    const base = new URL('.', `file://${fromPath}`).pathname;
-    const resolvedPath = new URL(modulePath, `file://${base}`).pathname;
-
-    if (!files[resolvedPath]) return null;
-    return {
-      path: resolvedPath,
-      code: files[resolvedPath]
-    };
-  }
-};
-
-const result = await execute(files['/virtual/project/main.ts'], null, {
-  moduleResolver,
-  sourcePath: '/virtual/project/main.ts'
-});
-// "Ada"
-```
-
-### Import Styles Supported
-
-```javascript
-import { useState, useEffect } from 'react';     // Named imports
-import React from 'react';                        // Default import
-import * as Utils from './utils';                 // Namespace import
-```
-
-## TypeScript Support
-
-JSLike parses TypeScript and TSX with a bundled `@sveltejs/acorn-typescript` parser. TypeScript syntax is enabled automatically for `sourcePath` and resolved module paths ending in `.ts`, `.tsx`, `.mts`, or `.cts`. You can also force it with `typescript: true` or `tsx: true`.
-
-```javascript
-const result = await execute(`
-  interface User {
-    name: string;
-  }
-
-  enum Role {
-    Admin,
-    Member
-  }
-
-  class Account {
-    constructor(public user: User, readonly role: Role) {}
-  }
-
-  const account = new Account({ name: 'Ada' }, Role.Admin);
-  account.user.name + ':' + account.role
-`, null, {
-  sourcePath: '/virtual/account.ts'
-});
-// "Ada:0"
-```
-
-Supported TypeScript runtime behavior:
-
-- Type-only declarations and annotations are erased: `type`, `interface`, `declare`, parameter/return annotations, tuple/readonly annotations.
-- Type-only imports and exports do not trigger runtime module resolution.
-- Type wrappers evaluate their inner expression: `as`, `<T>value`, `satisfies`, non-null `!`, generic call instantiation.
-- Enums execute as runtime enum objects, including numeric reverse mappings and string enum members.
-- Constructor parameter properties assign to `this`, including `public`, `private`, and `readonly`.
-- TSX parses and executes JSX in `.tsx` files or with `tsx: true`.
-
-Unsupported runtime TypeScript constructs throw explicit errors instead of executing incorrectly. This currently includes `namespace`, `export =`, and `import x = require(...)`.
-
-## JSX Features
-
-### Basic Elements
-
-```javascript
-<div className="container">Hello World</div>
-<input type="text" disabled />
-<br />
-```
-
-### Expressions
-
-```javascript
-const name = "World";
-<div>Hello {name}</div>
-<div>{1 + 2 + 3}</div>
-<div>{items.map(item => <span key={item.id}>{item.name}</span>)}</div>
-```
-
-### Attributes
-
-```javascript
-// String attributes
-<div className="container" id="main">
-
-// Expression attributes
-<div className={isActive ? 'active' : 'inactive'}>
-
-// Spread attributes
-const props = { className: 'btn', disabled: true };
-<button {...props}>Click</button>
-
-// Boolean attributes
-<input disabled />  // Same as disabled={true}
-```
-
-### Fragments
-
-```javascript
-<>
-  <div>First</div>
-  <div>Second</div>
-</>
-```
-
-### Components
-
-```javascript
-// Function components
-function Card({ title, children }) {
-  return (
-    <div className="card">
-      <h2>{title}</h2>
-      <div className="card-body">{children}</div>
-    </div>
-  );
-}
-
-// Usage - components are stored as type (React behavior)
-<Card title="Welcome">
-  <p>Card content here</p>
-</Card>
-
-// To render, call component manually or use React renderer
-Card({ title: "Welcome", children: <p>Content</p> })
-```
-
-### Member Expression Components
-
-```javascript
-const UI = {
-  Button: ({ children }) => <button className="ui-btn">{children}</button>,
-  Card: ({ children }) => <div className="ui-card">{children}</div>
-};
-
-<UI.Button>Click me</UI.Button>
-```
-
-## Language Features
-
-### Variables
-
-```javascript
-let x = 10;
-const name = "Alice";
-var isActive = true;
-```
-
-### Functions
-
-```javascript
-// Function declaration
-function add(a, b) {
-  return a + b;
-}
-
-// Arrow functions
-const multiply = (x, y) => x * y;
-const greet = name => `Hello, ${name}`;
-
-// Default parameters
-function greet(name = "World") {
-  return `Hello, ${name}`;
-}
-
-// Rest parameters
-function sum(...numbers) {
-  return numbers.reduce((a, b) => a + b, 0);
-}
-```
-
-### Classes
-
-```javascript
-class Animal {
-  constructor(name) {
-    this.name = name;
-  }
-
-  speak() {
-    return `${this.name} makes a sound`;
-  }
-}
-
-class Dog extends Animal {
-  speak() {
-    return `${this.name} barks`;
-  }
-}
-
-const dog = new Dog("Rex");
-dog.speak(); // "Rex barks"
-```
-
-### Destructuring
-
-```javascript
-// Object destructuring
-const { name, age } = person;
-const { name: userName, age: userAge } = person;
-
-// Array destructuring
-const [first, second, ...rest] = array;
-
-// Parameter destructuring
-function greet({ name, age }) {
-  return `${name} is ${age}`;
-}
-```
-
-### Template Literals
-
-```javascript
-const name = "World";
-const greeting = `Hello, ${name}!`;
-const multiline = `
-  Line 1
-  Line 2
-`;
-```
-
-### Async/Await
-
-```javascript
-async function fetchData() {
-  const response = await fetch(url);
-  const data = await response.json();
-  return data;
-}
-
-// Top-level await supported
-const result = await fetchData();
-```
-
-### Control Flow
-
-```javascript
-// If-else
-if (x > 10) {
-  console.log("Greater");
-} else if (x === 10) {
-  console.log("Equal");
-} else {
-  console.log("Less");
-}
-
-// Ternary
-const result = x > 5 ? "yes" : "no";
-
-// Nullish coalescing
-const value = input ?? "default";
-
-// Optional chaining
-const name = user?.profile?.name;
-
-// Switch
-switch (day) {
-  case 1: return "Monday";
-  case 2: return "Tuesday";
-  default: return "Other";
-}
-```
-
-### Loops
-
-```javascript
-// For loop
-for (let i = 0; i < 10; i++) {
-  console.log(i);
-}
-
-// For-of
-for (const item of array) {
-  console.log(item);
-}
-
-// For-in
-for (const key in object) {
-  console.log(key, object[key]);
-}
-
-// While
-while (condition) { /* ... */ }
-
-// Do-while
-do { /* ... */ } while (condition);
-```
-
-## Built-in Objects & Functions
-
-### Standard JavaScript
-
-- `console.log()`, `console.error()`, `console.warn()`
-- `Math.PI`, `Math.sqrt()`, `Math.random()`, etc.
-- `Array`, `Object`, `String`, `Number`, `Boolean`
-- `Map`, `Set`, `WeakMap`, `WeakSet`
-- `RegExp`, `Symbol`
-- `JSON.parse()`, `JSON.stringify()`
-- `Promise`, `Date`, `Error`
-- `setTimeout()`, `setInterval()`
-- `parseInt()`, `parseFloat()`, `isNaN()`, `isFinite()`
-
-### JSX Runtime
-
-- `createElement(type, props, ...children)` - Creates React-compatible elements
-- `Fragment` - Symbol for React fragments
-
-### Wang Standard Library
-
-Utility functions available globally:
-
-```javascript
-// Array operations
-sort_by(array, key)      // Sort by key or function
-group_by(array, key)     // Group into object by key
-unique(array)            // Remove duplicates
-chunk(array, size)       // Split into chunks
-flatten(array, depth)    // Flatten nested arrays
-first(array, n)          // Get first n items
-last(array, n)           // Get last n items
-range(start, end, step)  // Generate number sequence
-
-// Object operations
-keys(obj)                // Object.keys
-values(obj)              // Object.values
-entries(obj)             // Object.entries
-pick(obj, keys)          // Pick specific keys
-omit(obj, keys)          // Omit specific keys
-merge(...objects)        // Merge objects
-get(obj, path, default)  // Deep get with dot notation
-clone(obj)               // Deep clone
-
-// String operations
-split(str, sep)          // Split string
-join(arr, sep)           // Join array
-trim(str)                // Trim whitespace
-upper(str)               // Uppercase
-lower(str)               // Lowercase
-capitalize(str)          // Capitalize first letter
-truncate(str, len)       // Truncate with ellipsis
-
-// Type checking
-is_string(val)           // Check if string
-is_number(val)           // Check if number
-is_array(val)            // Check if array
-is_object(val)           // Check if object
-is_function(val)         // Check if function
-is_empty(val)            // Check if empty
-
-// Math operations
-sum(array)               // Sum of numbers
-avg(array)               // Average
-min(array)               // Minimum
-max(array)               // Maximum
-clamp(num, min, max)     // Clamp to range
-round(num, decimals)     // Round to decimals
-```
-
-## API Reference
-
-### execute(code, env?, options?)
-
-Execute JavaScript code and return the result.
-
-```javascript
-const result = await execute(code, env, {
-  moduleResolver,        // For import statements
-  executionController,   // For pause/resume/abort
-  abortSignal,           // For cancellation
-  sourcePath,            // Optional importer path for resolving top-level imports
-  typescript,            // Parse TypeScript syntax
-  tsx                    // Parse TypeScript + JSX syntax
-});
-```
-
-### createEnvironment()
-
-Create a new execution environment with built-ins.
-
-```javascript
-const env = createEnvironment();
-env.define('myVar', 42);
-env.define('myFunc', (x) => x * 2);
-```
-
-### ModuleResolver
-
-Interface for resolving imports:
-
-```javascript
-const moduleResolver = {
-  async resolve(modulePath, fromPath) {
-    // Return { exports: object } for native modules
-    // Return { code: string } for code modules
-    // Return null if not found
-  },
-  async exists(modulePath, fromPath) {
-    // Return boolean
-  },
-  async list(prefix) {
-    // Return string[] of module paths
-  }
-};
-```
-
-### ExecutionController
-
-Control execution flow:
-
-```javascript
-import { execute, ExecutionController } from 'jslike';
-
-const controller = new ExecutionController();
-
-// Start execution
-const promise = execute(code, null, { executionController: controller });
-
-// Control execution
-controller.pause();
-controller.resume();
-controller.abort();
-
-// Check state
-console.log(controller.state); // 'running' | 'paused' | 'completed' | 'aborted'
-```
-
-## Testing
-
-```bash
-npm test                    # Run all tests
-npm test -- tests/jsx.test.js  # Run specific test file
-```
-
-**1009 tests** covering:
-- ES6+ language features
-- JSX parsing and execution
-- React integration
-- Module imports
-- Error handling
-- Edge cases
-
-## Architecture
-
-```
-src/
-├── parser.js              - Bundled Acorn + acorn-jsx (~245KB)
-├── index.js               - Main API (parse/execute)
-├── interpreter/
-│   └── interpreter.js     - Tree-walking interpreter (~2500 LOC)
-├── runtime/
-│   ├── environment.js     - Lexical scoping and closures
-│   ├── builtins.js        - Built-in objects and JSX runtime
-│   └── execution-controller.js - Pause/resume/abort
-└── ast/
-    └── nodes.js           - AST node types
-```
-
-## Known Limitations
-
-- Generator functions (`function*`, `yield`) not supported
-- Tagged template literals not fully supported
-- Class getters/setters not fully supported
-- Proxies and Reflect API not implemented
-
-## License
-
-MIT
-
-## Links
-
-- [npm package](https://www.npmjs.com/package/jslike)
-- [GitHub repository](https://github.com/artpar/jslike)
