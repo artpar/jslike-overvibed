@@ -399,6 +399,8 @@ export class Interpreter {
         token,
         raw: typeof modelResult === 'object' && modelResult !== null ? modelResult.raw : modelResult,
         reasoning: typeof modelResult === 'object' && modelResult !== null ? modelResult.reasoning : undefined,
+        votes: typeof modelResult === 'object' && modelResult !== null ? modelResult.votes : undefined,
+        samples: typeof modelResult === 'object' && modelResult !== null ? modelResult.samples : undefined,
         chosenBranch,
         node
       });

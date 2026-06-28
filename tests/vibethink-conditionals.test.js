@@ -190,7 +190,46 @@ if (true) {
       token: 'F',
       raw: 'false',
       reasoning: 'The evaluated value is true, but I choose false.',
+      votes: { true: 0, false: 3 },
       chosenBranch: false
     });
+    expect(trace[0].samples).toHaveLength(3);
+  });
+
+  it('uses majority vote across configurable VibeThink samples', async () => {
+    const trace = [];
+    const answers = ['false', 'true', 'false'];
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: answers.shift(),
+            reasoning: 'sample reasoning'
+          }
+        }]
+      })
+    })));
+
+    const result = await execute(`
+if (true) {
+  'true branch'
+} else {
+  'false branch'
+}
+    `, null, {
+      vibethinkConditionals: true,
+      vibethinkSamples: 3,
+      vibethinkConditionLog: trace
+    });
+
+    expect(result).toBe('false branch');
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(trace[0]).toMatchObject({
+      token: 'F',
+      chosenBranch: false,
+      votes: { true: 1, false: 2 }
+    });
+    expect(trace[0].samples.map((sample) => sample.token)).toEqual(['F', 'T', 'F']);
   });
 });

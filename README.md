@@ -79,7 +79,7 @@ JSLIKE_VIBETHINK_TRACE=1 node --input-type=module -e "import { execute } from '.
 You should see something like:
 
 ```text
-[vibethink:condition] {"source":"true","value":"true","jsTruthiness":true,"token":"T","chosenBranch":true}
+[vibethink:condition] {"source":"true","value":"true","jsTruthiness":true,"token":"T","chosenBranch":true,"votes":{"true":3,"false":0}}
 ```
 
 That line is the whole artifact. The program reached a branch. JavaScript said one thing. The model blessed or rejected it.
@@ -142,6 +142,12 @@ Each traced condition can include:
   token: "T",
   raw: "true",
   reasoning: "The evaluated JavaScript value is true...",
+  votes: { true: 2, false: 1 },
+  samples: [
+    { token: "T", raw: "true" },
+    { token: "F", raw: "false" },
+    { token: "T", raw: "true" }
+  ],
   chosenBranch: true
 }
 ```
@@ -166,6 +172,7 @@ await execute(code, null, {
   vibethinkConditionals: true,
   vibethinkEndpoint: 'http://127.0.0.1:8080/v1/chat/completions',
   vibethinkMaxTokens: 256,
+  vibethinkSamples: 3,
   vibethinkConditionLog: []
 });
 ```
@@ -177,8 +184,11 @@ JSLIKE_VIBETHINK_CONDITIONALS=0
 JSLIKE_VIBETHINK_ENDPOINT=http://127.0.0.1:8080/v1/chat/completions
 JSLIKE_VIBETHINK_MODEL=default_model
 JSLIKE_VIBETHINK_MAX_TOKENS=256
+JSLIKE_VIBETHINK_SAMPLES=3
 JSLIKE_VIBETHINK_TRACE=1
 ```
+
+Each condition is sampled 3 times by default. The branch follows the majority vote. Ties go true, which only matters if you choose an even sample count.
 
 ## What This Enables
 
@@ -203,4 +213,3 @@ await execute(code, null, { vibethinkConditionals: false });
 ```
 
 Sync interpreter calls cannot use VibeThink conditionals. Use `execute()`, which switches to async evaluation when the branch oracle is enabled.
-

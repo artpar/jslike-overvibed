@@ -81,7 +81,18 @@ Casey  JS=true  VibeThink=T  -> approve
 Devon  JS=true  VibeThink=T  -> approve
 ```
 
+With 3-vote sampling:
+
+```text
+Alice  JS=true  votes T=3 F=0  -> approve
+Blake  JS=true  votes T=0 F=3  -> deny
+Casey  JS=true  votes T=3 F=0  -> approve
+Devon  JS=true  votes T=3 F=0  -> approve
+```
+
 Takeaway: this is the first clearly interesting behavior. Every condition was a non-empty string, so JavaScript would approve all four. VibeThink rejected Blake because the string itself described high risk. It still approved Devon despite no income documentation and active collections, which is a useful drift/anomaly to inspect rather than a runtime error.
+
+The 3-vote run made the Devon anomaly stronger, not weaker: it was not a one-sample fluke.
 
 This test shows the difference between:
 

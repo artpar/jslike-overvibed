@@ -28,12 +28,13 @@ Configuration:
 - `vibethinkEndpoint` or `JSLIKE_VIBETHINK_ENDPOINT` overrides the endpoint.
 - `vibethinkModel` or `JSLIKE_VIBETHINK_MODEL` includes a model in the request body.
 - `vibethinkMaxTokens` or `JSLIKE_VIBETHINK_MAX_TOKENS` controls request `max_tokens`; default is `256` so the model can think and still emit final content.
+- `vibethinkSamples` or `JSLIKE_VIBETHINK_SAMPLES` controls how many model calls vote on each condition; default is `3`.
 - `vibethinkConditionEvaluator` injects a custom async evaluator for tests.
 - `vibethinkConditionTrace: true` or `JSLIKE_VIBETHINK_TRACE=1` logs each model-routed condition to stderr.
 - `vibethinkConditionLog: []` collects trace entries programmatically.
 - `vibethinkConditionLogger(entry)` receives each trace entry.
 
-Trace entries include the condition source, evaluated JavaScript value, JavaScript truthiness, model token, raw model text, and chosen branch. Example:
+Trace entries include the condition source, evaluated JavaScript value, JavaScript truthiness, winning model token, raw model text, vote counts, individual samples, and chosen branch. Example:
 
 ```js
 import { execute } from './src/index.js';
