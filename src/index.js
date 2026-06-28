@@ -3,6 +3,11 @@ import { parse as acornParse, tsParse, tsxParse } from './parser.js';
 import { Interpreter } from './interpreter/interpreter.js';
 import { Environment, ReturnValue } from './runtime/environment.js';
 import { createGlobalEnvironment } from './runtime/builtins.js';
+import {
+  createVibeThinkConditionLogger,
+  createVibeThinkConditionEvaluator,
+  isVibeThinkConditionalsEnabled
+} from './interpreter/vibethink-condition.js';
 
 // Helper to detect if code contains module syntax or top-level await
 function containsModuleSyntax(code) {
@@ -111,6 +116,7 @@ function containsTopLevelAwait(node) {
 export async function execute(code, env = null, options = {}) {
   // Get execution controller if provided
   const controller = options.executionController;
+  const vibethinkConditionals = isVibeThinkConditionalsEnabled(options);
 
   // Mark execution as starting
   if (controller) {
@@ -133,7 +139,14 @@ export async function execute(code, env = null, options = {}) {
       executionController: controller,
       currentModulePath: options.sourcePath,
       isTypeScriptModule: options.typescript || options.tsx || isTypeScriptPath(options.sourcePath),
-      sourceCode: code
+      sourceCode: code,
+      vibethinkConditionals,
+      vibethinkConditionEvaluator: vibethinkConditionals
+        ? createVibeThinkConditionEvaluator(options)
+        : null,
+      vibethinkConditionLogger: vibethinkConditionals
+        ? createVibeThinkConditionLogger(options)
+        : null
     });
 
     // Use async evaluation if:
@@ -144,6 +157,7 @@ export async function execute(code, env = null, options = {}) {
     const needsAsync = options.sourceType === 'module' ||
                        containsModuleDeclarations(ast) ||
                        containsTopLevelAwait(ast) ||
+                       vibethinkConditionals ||
                        controller != null;
 
     if (needsAsync) {

@@ -1,6 +1,7 @@
 import { Environment, ReturnValue, BreakSignal, ContinueSignal, ThrowSignal } from '../runtime/environment.js';
 import { parse as acornParse, tsParse, tsxParse } from '../parser.js';
 import { createMethodNotFoundError } from '../errors/enhanced-error.js';
+import { serializeConditionValue } from './vibethink-condition.js';
 
 const ASYNC_EXPRESSION_COMPLETION = Symbol('jslike.asyncExpressionCompletion');
 
@@ -328,6 +329,9 @@ export class Interpreter {
     this.runtimeIdentifierReferences = null;
     this.abortSignal = options.abortSignal;
     this.executionController = options.executionController;
+    this.vibethinkConditionals = options.vibethinkConditionals === true;
+    this.vibethinkConditionEvaluator = options.vibethinkConditionEvaluator;
+    this.vibethinkConditionLogger = options.vibethinkConditionLogger;
   }
 
   // Check if execution should be aborted (sync version)
@@ -354,6 +358,58 @@ export class Interpreter {
     } else {
       this.checkAbortSignal();
       return null;  // Signal that no await is needed
+    }
+  }
+
+  getConditionSource(node) {
+    if (!node || typeof node.start !== 'number' || typeof node.end !== 'number') {
+      return '';
+    }
+    return this.sourceCode.slice(node.start, node.end);
+  }
+
+  async evaluateConditionAsync(node, env) {
+    const value = await this.evaluateAsync(node, env);
+    if (!this.vibethinkConditionals) {
+      return !!value;
+    }
+    if (typeof this.vibethinkConditionEvaluator !== 'function') {
+      throw new Error('VibeThink conditionals require a condition evaluator');
+    }
+    const source = this.getConditionSource(node);
+    const modelResult = await this.vibethinkConditionEvaluator({
+      source,
+      value,
+      node
+    });
+    const decision = typeof modelResult === 'object' && modelResult !== null
+      ? modelResult.decision
+      : modelResult;
+    const token = typeof modelResult === 'object' && modelResult !== null
+      ? modelResult.token
+      : null;
+    const chosenBranch = !!decision;
+
+    if (typeof this.vibethinkConditionLogger === 'function') {
+      this.vibethinkConditionLogger({
+        source,
+        value,
+        valueText: serializeConditionValue(value),
+        jsTruthiness: !!value,
+        token,
+        raw: typeof modelResult === 'object' && modelResult !== null ? modelResult.raw : modelResult,
+        reasoning: typeof modelResult === 'object' && modelResult !== null ? modelResult.reasoning : undefined,
+        chosenBranch,
+        node
+      });
+    }
+
+    return chosenBranch;
+  }
+
+  evaluateConditionSync() {
+    if (this.vibethinkConditionals) {
+      throw new Error('VibeThink conditionals require async evaluation');
     }
   }
 
@@ -391,7 +447,7 @@ export class Interpreter {
     }
 
     if (node.type === 'ConditionalExpression') {
-      const test = await this.evaluateAsync(node.test, env);
+      const test = await this.evaluateConditionAsync(node.test, env);
       return await this.evaluateAsyncRawValue(test ? node.consequent : node.alternate, env);
     }
 
@@ -801,7 +857,7 @@ export class Interpreter {
       if (node.init) {
         await this.evaluateAsync(node.init, forEnv);
       }
-      while (!node.test || await this.evaluateAsync(node.test, forEnv)) {
+      while (!node.test || await this.evaluateConditionAsync(node.test, forEnv)) {
         // Checkpoint at each loop iteration (only await if controller present)
         const cp1 = this._getCheckpointPromise(node, forEnv);
         if (cp1) await cp1;
@@ -889,7 +945,7 @@ export class Interpreter {
 
     // For WhileStatement with async body
     if (node.type === 'WhileStatement') {
-      while (await this.evaluateAsync(node.test, env)) {
+      while (await this.evaluateConditionAsync(node.test, env)) {
         // Checkpoint at each loop iteration (only await if controller present)
         const cp4 = this._getCheckpointPromise(node, env);
         if (cp4) await cp4;
@@ -923,13 +979,13 @@ export class Interpreter {
         if (result instanceof ReturnValue || result instanceof ThrowSignal) {
           return result;
         }
-      } while (await this.evaluateAsync(node.test, env));
+      } while (await this.evaluateConditionAsync(node.test, env));
       return undefined;
     }
 
     // For IfStatement with async branches
     if (node.type === 'IfStatement') {
-      const test = await this.evaluateAsync(node.test, env);
+      const test = await this.evaluateConditionAsync(node.test, env);
       if (test) {
         return await this.evaluateAsync(node.consequent, env);
       } else if (node.alternate) {
@@ -970,7 +1026,7 @@ export class Interpreter {
 
     // For ConditionalExpression (ternary) with async operands
     if (node.type === 'ConditionalExpression') {
-      const test = await this.evaluateAsync(node.test, env);
+      const test = await this.evaluateConditionAsync(node.test, env);
       return test
         ? await this.evaluateAsync(node.consequent, env)
         : await this.evaluateAsync(node.alternate, env);
@@ -1719,6 +1775,7 @@ export class Interpreter {
   }
 
   evaluateConditionalExpression(node, env) {
+    this.evaluateConditionSync();
     const test = this.evaluate(node.test, env);
     return test
       ? this.evaluate(node.consequent, env)
@@ -2625,6 +2682,7 @@ export class Interpreter {
   }
 
   evaluateIfStatement(node, env) {
+    this.evaluateConditionSync();
     const test = this.evaluate(node.test, env);
 
     if (test) {
@@ -2637,6 +2695,7 @@ export class Interpreter {
   }
 
   evaluateWhileStatement(node, env) {
+    this.evaluateConditionSync();
     let result;
 
     while (this.evaluate(node.test, env)) {
@@ -2657,6 +2716,7 @@ export class Interpreter {
   }
 
   evaluateDoWhileStatement(node, env) {
+    this.evaluateConditionSync();
     let result;
 
     do {
@@ -2677,6 +2737,7 @@ export class Interpreter {
   }
 
   evaluateForStatement(node, env) {
+    this.evaluateConditionSync();
     const forEnv = new Environment(env);
     let result;
 
