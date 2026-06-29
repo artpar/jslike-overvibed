@@ -173,6 +173,7 @@ await execute(code, null, {
   vibethinkEndpoint: 'http://127.0.0.1:8080/v1/chat/completions',
   vibethinkMaxTokens: 256,
   vibethinkSamples: 3,
+  vibethinkSampleRetries: 2,
   vibethinkConditionLog: []
 });
 ```
@@ -185,10 +186,11 @@ JSLIKE_VIBETHINK_ENDPOINT=http://127.0.0.1:8080/v1/chat/completions
 JSLIKE_VIBETHINK_MODEL=default_model
 JSLIKE_VIBETHINK_MAX_TOKENS=256
 JSLIKE_VIBETHINK_SAMPLES=3
+JSLIKE_VIBETHINK_SAMPLE_RETRIES=2
 JSLIKE_VIBETHINK_TRACE=1
 ```
 
-Each condition is sampled 3 times by default. The branch follows the majority vote. Ties go true, which only matters if you choose an even sample count.
+Each condition is sampled 3 times by default. A bad sample is retried twice before the condition fails. The branch follows the majority vote. Ties go true, which only matters if you choose an even sample count.
 
 ## What This Enables
 

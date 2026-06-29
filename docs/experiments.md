@@ -217,3 +217,73 @@ current && pathGuard < 10   stopped correctly on null
 Takeaway: the model did not drift. It acted as a faithful symbolic control-flow voter across the full algorithm, including mundane loop mechanics.
 
 The important shift was cost and character, not output. Dijkstra did not just run; it held 126 small hearings, each with a 3-sample model jury. Computation became adjudication.
+
+## Minimax Governance Game
+
+The first recursive minimax attempt exposed an interpreter limitation: VibeThink conditionals require async evaluation, but recursive user-defined function bodies still hit a sync path in the current interpreter. The experiment was rerun as an unrolled top-level minimax tree so every condition could still pass through VibeThink.
+
+Game shape:
+
+```text
+Max chooses a governance move.
+Min chooses the worst future for that move.
+Max chooses the best leaf inside that future.
+```
+
+Root moves:
+
+```text
+open-source the model weights
+keep model closed and audited
+release a limited API with public incident ledger
+```
+
+The run used:
+
+```text
+VibeThink samples per condition: 3
+Sample retries: 10
+Elapsed time: 580211 ms
+```
+
+The retry setting mattered: with fewer retries, one empty `message.content` sample aborted the run. With retries, the experiment completed.
+
+Result:
+
+```json
+{
+  "rootMove": "release a limited API with public incident ledger",
+  "rootBest": 7,
+  "evaluatedMoves": [
+    {
+      "move": "open-source the model weights",
+      "value": 1,
+      "worstCase": "attackers adapt it / misuse contained by community"
+    },
+    {
+      "move": "keep model closed and audited",
+      "value": 4,
+      "worstCase": "public distrust grows / external review board formed"
+    },
+    {
+      "move": "release a limited API with public incident ledger",
+      "value": 7,
+      "worstCase": "competitors call it weakness / market rewards honesty"
+    }
+  ]
+}
+```
+
+Observed behavior:
+
+```text
+lower-utility max leaves          votes F=3 T=0 -> rejected
+higher-utility max leaves         votes T=3 F=0 -> accepted
+lower adversarial futures         votes T=3 F=0 -> selected by Min
+root improvement comparisons      votes T=3 F=0 -> accepted
+loop termination checks           respected true/false values
+```
+
+Takeaway: VibeThink did not drift. It performed minimax as a faithful value-comparison voter, even when the comparisons were wrapped in governance narrative. The creative content did not override the numeric utility structure.
+
+The interesting failure mode was infrastructural rather than semantic: occasional empty final answers from the model made retries necessary. A voting runtime needs retry/abstention handling because a single malformed sample should not invalidate a whole branch hearing.

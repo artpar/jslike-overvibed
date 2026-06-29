@@ -153,6 +153,18 @@ async function requestVibeThinkDecision({ endpoint, model, maxTokens, source, va
   };
 }
 
+async function requestVibeThinkDecisionWithRetries({ retries, ...request }) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await requestVibeThinkDecision(request);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 export function createVibeThinkConditionEvaluator(options = {}) {
   if (typeof options.vibethinkConditionEvaluator === 'function') {
     return options.vibethinkConditionEvaluator;
@@ -164,6 +176,7 @@ export function createVibeThinkConditionEvaluator(options = {}) {
   const model = options.vibethinkModel || getEnv('JSLIKE_VIBETHINK_MODEL');
   const maxTokens = getNumberOption(options, 'vibethinkMaxTokens', 'JSLIKE_VIBETHINK_MAX_TOKENS', 256);
   const sampleCount = getIntegerOption(options, 'vibethinkSamples', 'JSLIKE_VIBETHINK_SAMPLES', 3);
+  const sampleRetries = getIntegerOption(options, 'vibethinkSampleRetries', 'JSLIKE_VIBETHINK_SAMPLE_RETRIES', 2);
 
   return async ({ source, value }) => {
     if (typeof fetch !== 'function') {
@@ -172,12 +185,13 @@ export function createVibeThinkConditionEvaluator(options = {}) {
 
     const samples = [];
     for (let index = 0; index < sampleCount; index += 1) {
-      samples.push(await requestVibeThinkDecision({
+      samples.push(await requestVibeThinkDecisionWithRetries({
         endpoint,
         model,
         maxTokens,
         source,
-        value
+        value,
+        retries: sampleRetries
       }));
     }
 

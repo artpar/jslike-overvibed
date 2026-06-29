@@ -232,4 +232,34 @@ if (true) {
     });
     expect(trace[0].samples.map((sample) => sample.token)).toEqual(['F', 'T', 'F']);
   });
+
+  it('retries invalid individual samples before failing the vote', async () => {
+    const answers = ['', 'true', 'true', 'true'];
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: answers.shift(),
+            reasoning: 'sample reasoning'
+          }
+        }]
+      })
+    })));
+
+    const result = await execute(`
+if (true) {
+  'true branch'
+} else {
+  'false branch'
+}
+    `, null, {
+      vibethinkConditionals: true,
+      vibethinkSamples: 3,
+      vibethinkSampleRetries: 1
+    });
+
+    expect(result).toBe('true branch');
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
 });
