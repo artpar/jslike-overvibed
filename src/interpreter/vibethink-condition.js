@@ -60,7 +60,7 @@ function getVibeThinkConfig(options = {}) {
       getEnv('JSLIKE_VIBETHINK_ENDPOINT') ||
       DEFAULT_VIBETHINK_ENDPOINT,
     model: options.vibethinkModel || getEnv('JSLIKE_VIBETHINK_MODEL'),
-    maxTokens: getNumberOption(options, 'vibethinkMaxTokens', 'JSLIKE_VIBETHINK_MAX_TOKENS', 256),
+    maxTokens: getNumberOption(options, 'vibethinkMaxTokens', 'JSLIKE_VIBETHINK_MAX_TOKENS', 8096),
     sampleCount: getIntegerOption(options, 'vibethinkSamples', 'JSLIKE_VIBETHINK_SAMPLES', 3),
     sampleRetries: getIntegerOption(options, 'vibethinkSampleRetries', 'JSLIKE_VIBETHINK_SAMPLE_RETRIES', 2)
   };

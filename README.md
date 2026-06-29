@@ -171,7 +171,7 @@ JSLIKE_VIBETHINK_TRACE=1 node your-program.js
 await execute(code, null, {
   vibethinkConditionals: true,
   vibethinkEndpoint: 'http://127.0.0.1:8080/v1/chat/completions',
-  vibethinkMaxTokens: 256,
+  vibethinkMaxTokens: 8096,
   vibethinkSamples: 3,
   vibethinkSampleRetries: 2,
   vibethinkConditionLog: []
@@ -184,13 +184,15 @@ Environment equivalents:
 JSLIKE_VIBETHINK_CONDITIONALS=0
 JSLIKE_VIBETHINK_ENDPOINT=http://127.0.0.1:8080/v1/chat/completions
 JSLIKE_VIBETHINK_MODEL=default_model
-JSLIKE_VIBETHINK_MAX_TOKENS=256
+JSLIKE_VIBETHINK_MAX_TOKENS=8096
 JSLIKE_VIBETHINK_SAMPLES=3
 JSLIKE_VIBETHINK_SAMPLE_RETRIES=2
 JSLIKE_VIBETHINK_TRACE=1
 ```
 
 Each condition is sampled 3 times by default. A bad sample is retried twice before the condition fails. The branch follows the majority vote. Ties go true, which only matters if you choose an even sample count.
+
+The default `vibethinkMaxTokens` is `8096`, matching the local `mlx_lm` server command above. This lets the reasoning model think and still have room to emit the final branch token.
 
 In Node, branch votes are blocking from the interpreted program's point of view. The runtime calls the local VibeThink server synchronously, then continues the current branch, including inside ordinary non-`async` functions and recursive functions.
 

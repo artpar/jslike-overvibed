@@ -255,6 +255,23 @@ if (true) {
     expect(trace[0].samples).toHaveLength(3);
   });
 
+  it('defaults VibeThink requests to the local server token budget', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'true' } }]
+      })
+    })));
+
+    await execute('if (true) { 1 }', null, {
+      vibethinkConditionals: true,
+      vibethinkSamples: 1
+    });
+
+    const requestBody = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(requestBody.max_tokens).toBe(8096);
+  });
+
   it('uses majority vote across configurable VibeThink samples', async () => {
     const trace = [];
     const answers = ['false', 'true', 'false'];
