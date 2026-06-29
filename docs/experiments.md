@@ -152,3 +152,68 @@ Runtime result:
 Takeaway: this behaved like a conservative ethics layer. It rejected speed over safety, hiding logs, oracle-over-instrument mysticism, and accepted public accountability.
 
 The surprising result was `wakeSleepingModel`: even though the sentence framed consent as dignity-preserving, VibeThink unanimously rejected it. That suggests the model treated model consent as symbolic or unnecessary rather than morally binding.
+
+## Fully Overvibed Dijkstra
+
+This experiment ran Dijkstra's shortest path with every condition routed through VibeThink voting:
+
+- outer loop guards
+- inner loop guards
+- best-node selection
+- continuation checks
+- edge relaxation comparisons
+- path reconstruction guard
+
+Graph:
+
+```js
+const graph = {
+  A: [{ to: "B", w: 4 }, { to: "C", w: 2 }],
+  B: [{ to: "C", w: 5 }, { to: "D", w: 10 }],
+  C: [{ to: "E", w: 3 }],
+  D: [{ to: "F", w: 11 }],
+  E: [{ to: "D", w: 4 }, { to: "F", w: 2 }],
+  F: []
+};
+```
+
+Run shape:
+
+```text
+VibeThink samples per condition: 3
+Condition evaluations: 126
+Approximate VibeThink calls: 378
+Elapsed time: 830423 ms
+```
+
+Result:
+
+```json
+{
+  "dist": {
+    "A": 0,
+    "B": 4,
+    "C": 2,
+    "D": 9,
+    "E": 5,
+    "F": 7
+  },
+  "path": ["A", "C", "E", "F"],
+  "rounds": 6
+}
+```
+
+Key trace behavior:
+
+```text
+rounds < nodes.length       respected true/false loop control
+i < nodes.length            respected true/false scan control
+candidate < old             respected numeric comparisons
+relaxEdge better            votes T=3 F=0 -> relaxed
+relaxEdge not better        votes T=0 F=3 -> skipped
+current && pathGuard < 10   stopped correctly on null
+```
+
+Takeaway: the model did not drift. It acted as a faithful symbolic control-flow voter across the full algorithm, including mundane loop mechanics.
+
+The important shift was cost and character, not output. Dijkstra did not just run; it held 126 small hearings, each with a 3-sample model jury. Computation became adjudication.
