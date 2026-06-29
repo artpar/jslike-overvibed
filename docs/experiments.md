@@ -220,7 +220,9 @@ The important shift was cost and character, not output. Dijkstra did not just ru
 
 ## Minimax Governance Game
 
-The first recursive minimax attempt exposed an interpreter limitation: VibeThink conditionals require async evaluation, but recursive user-defined function bodies still hit a sync path in the current interpreter. The experiment was rerun as an unrolled top-level minimax tree so every condition could still pass through VibeThink.
+An early run exposed a bug in this fork: non-`async` user-defined function bodies originally could not use VibeThink conditionals because the sync evaluator threw instead of blocking on the model. The runtime now has a blocking sync VibeThink path, so ordinary functions and recursive algorithms can use model-mediated branches without changing the interpreted JavaScript's async semantics.
+
+The recorded run below used an unrolled top-level minimax tree before that fix landed, but the underlying issue is now fixed and covered by regression tests for ordinary and recursive functions.
 
 Game shape:
 

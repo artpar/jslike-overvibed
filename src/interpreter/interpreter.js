@@ -331,6 +331,7 @@ export class Interpreter {
     this.executionController = options.executionController;
     this.vibethinkConditionals = options.vibethinkConditionals === true;
     this.vibethinkConditionEvaluator = options.vibethinkConditionEvaluator;
+    this.vibethinkConditionEvaluatorSync = options.vibethinkConditionEvaluatorSync;
     this.vibethinkConditionLogger = options.vibethinkConditionLogger;
   }
 
@@ -368,6 +369,26 @@ export class Interpreter {
     return this.sourceCode.slice(node.start, node.end);
   }
 
+  emitConditionLog({ source, value, modelResult, chosenBranch, node }) {
+    if (typeof this.vibethinkConditionLogger !== 'function') {
+      return;
+    }
+
+    this.vibethinkConditionLogger({
+      source,
+      value,
+      valueText: serializeConditionValue(value),
+      jsTruthiness: !!value,
+      token: typeof modelResult === 'object' && modelResult !== null ? modelResult.token : null,
+      raw: typeof modelResult === 'object' && modelResult !== null ? modelResult.raw : modelResult,
+      reasoning: typeof modelResult === 'object' && modelResult !== null ? modelResult.reasoning : undefined,
+      votes: typeof modelResult === 'object' && modelResult !== null ? modelResult.votes : undefined,
+      samples: typeof modelResult === 'object' && modelResult !== null ? modelResult.samples : undefined,
+      chosenBranch,
+      node
+    });
+  }
+
   async evaluateConditionAsync(node, env) {
     const value = await this.evaluateAsync(node, env);
     if (!this.vibethinkConditionals) {
@@ -385,34 +406,35 @@ export class Interpreter {
     const decision = typeof modelResult === 'object' && modelResult !== null
       ? modelResult.decision
       : modelResult;
-    const token = typeof modelResult === 'object' && modelResult !== null
-      ? modelResult.token
-      : null;
     const chosenBranch = !!decision;
 
-    if (typeof this.vibethinkConditionLogger === 'function') {
-      this.vibethinkConditionLogger({
-        source,
-        value,
-        valueText: serializeConditionValue(value),
-        jsTruthiness: !!value,
-        token,
-        raw: typeof modelResult === 'object' && modelResult !== null ? modelResult.raw : modelResult,
-        reasoning: typeof modelResult === 'object' && modelResult !== null ? modelResult.reasoning : undefined,
-        votes: typeof modelResult === 'object' && modelResult !== null ? modelResult.votes : undefined,
-        samples: typeof modelResult === 'object' && modelResult !== null ? modelResult.samples : undefined,
-        chosenBranch,
-        node
-      });
-    }
+    this.emitConditionLog({ source, value, modelResult, chosenBranch, node });
 
     return chosenBranch;
   }
 
-  evaluateConditionSync() {
-    if (this.vibethinkConditionals) {
-      throw new Error('VibeThink conditionals require async evaluation');
+  evaluateConditionSync(node, env) {
+    const value = this.evaluate(node, env);
+    if (!this.vibethinkConditionals) {
+      return !!value;
     }
+    if (typeof this.vibethinkConditionEvaluatorSync !== 'function') {
+      throw new Error('VibeThink conditionals require a sync condition evaluator');
+    }
+    const source = this.getConditionSource(node);
+    const modelResult = this.vibethinkConditionEvaluatorSync({
+      source,
+      value,
+      node
+    });
+    const decision = typeof modelResult === 'object' && modelResult !== null
+      ? modelResult.decision
+      : modelResult;
+    const chosenBranch = !!decision;
+
+    this.emitConditionLog({ source, value, modelResult, chosenBranch, node });
+
+    return chosenBranch;
   }
 
   async evaluateAsyncRawValue(node, env) {
@@ -1777,8 +1799,7 @@ export class Interpreter {
   }
 
   evaluateConditionalExpression(node, env) {
-    this.evaluateConditionSync();
-    const test = this.evaluate(node.test, env);
+    const test = this.evaluateConditionSync(node.test, env);
     return test
       ? this.evaluate(node.consequent, env)
       : this.evaluate(node.alternate, env);
@@ -2684,8 +2705,7 @@ export class Interpreter {
   }
 
   evaluateIfStatement(node, env) {
-    this.evaluateConditionSync();
-    const test = this.evaluate(node.test, env);
+    const test = this.evaluateConditionSync(node.test, env);
 
     if (test) {
       return this.evaluate(node.consequent, env);
@@ -2697,10 +2717,9 @@ export class Interpreter {
   }
 
   evaluateWhileStatement(node, env) {
-    this.evaluateConditionSync();
     let result;
 
-    while (this.evaluate(node.test, env)) {
+    while (this.evaluateConditionSync(node.test, env)) {
       result = this.evaluate(node.body, env);
 
       if (result instanceof BreakSignal) {
@@ -2718,7 +2737,6 @@ export class Interpreter {
   }
 
   evaluateDoWhileStatement(node, env) {
-    this.evaluateConditionSync();
     let result;
 
     do {
@@ -2733,13 +2751,12 @@ export class Interpreter {
       if (result instanceof ReturnValue || result instanceof ThrowSignal) {
         return result;
       }
-    } while (this.evaluate(node.test, env));
+    } while (this.evaluateConditionSync(node.test, env));
 
     return undefined;
   }
 
   evaluateForStatement(node, env) {
-    this.evaluateConditionSync();
     const forEnv = new Environment(env);
     let result;
 
@@ -2747,7 +2764,7 @@ export class Interpreter {
       this.evaluate(node.init, forEnv);
     }
 
-    while (!node.test || this.evaluate(node.test, forEnv)) {
+    while (!node.test || this.evaluateConditionSync(node.test, forEnv)) {
       result = this.evaluate(node.body, forEnv);
 
       if (result instanceof BreakSignal) {

@@ -6,6 +6,7 @@ import { createGlobalEnvironment } from './runtime/builtins.js';
 import {
   createVibeThinkConditionLogger,
   createVibeThinkConditionEvaluator,
+  createVibeThinkConditionEvaluatorSync,
   isVibeThinkConditionalsEnabled
 } from './interpreter/vibethink-condition.js';
 
@@ -143,6 +144,9 @@ export async function execute(code, env = null, options = {}) {
       vibethinkConditionals,
       vibethinkConditionEvaluator: vibethinkConditionals
         ? createVibeThinkConditionEvaluator(options)
+        : null,
+      vibethinkConditionEvaluatorSync: vibethinkConditionals
+        ? createVibeThinkConditionEvaluatorSync(options)
         : null,
       vibethinkConditionLogger: vibethinkConditionals
         ? createVibeThinkConditionLogger(options)

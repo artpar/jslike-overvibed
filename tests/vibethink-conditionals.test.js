@@ -23,6 +23,65 @@ result
     expect(result).toBe('false branch');
   });
 
+  it('uses sync VibeThink evaluation inside non-async user functions', async () => {
+    const trace = [];
+    const evaluatorSync = vi.fn(() => ({
+      decision: false,
+      token: 'F',
+      raw: 'false',
+      votes: { true: 0, false: 1 },
+      samples: [{ decision: false, token: 'F', raw: 'false' }]
+    }));
+
+    const result = await execute(`
+function choose() {
+  if (true) {
+    return 'true branch';
+  }
+  return 'false branch';
+}
+choose()
+    `, null, {
+      vibethinkConditionals: true,
+      vibethinkConditionEvaluatorSync: evaluatorSync,
+      vibethinkConditionLog: trace
+    });
+
+    expect(result).toBe('false branch');
+    expect(evaluatorSync).toHaveBeenCalledTimes(1);
+    expect(trace[0]).toMatchObject({
+      source: 'true',
+      valueText: 'true',
+      chosenBranch: false
+    });
+  });
+
+  it('uses sync VibeThink evaluation inside recursive user functions', async () => {
+    const evaluatorSync = vi.fn(({ value }) => ({
+      decision: !!value,
+      token: value ? 'T' : 'F',
+      raw: value ? 'true' : 'false',
+      votes: { true: value ? 1 : 0, false: value ? 0 : 1 },
+      samples: [{ decision: !!value, token: value ? 'T' : 'F', raw: value ? 'true' : 'false' }]
+    }));
+
+    const result = await execute(`
+function sumTo(n) {
+  if (n <= 0) {
+    return 0;
+  }
+  return n + sumTo(n - 1);
+}
+sumTo(4)
+    `, null, {
+      vibethinkConditionals: true,
+      vibethinkConditionEvaluatorSync: evaluatorSync
+    });
+
+    expect(result).toBe(10);
+    expect(evaluatorSync).toHaveBeenCalledTimes(5);
+  });
+
   it('can force a falsy if condition to take the true branch', async () => {
     const result = await execute(`
 let result = 'unset';

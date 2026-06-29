@@ -192,6 +192,8 @@ JSLIKE_VIBETHINK_TRACE=1
 
 Each condition is sampled 3 times by default. A bad sample is retried twice before the condition fails. The branch follows the majority vote. Ties go true, which only matters if you choose an even sample count.
 
+In Node, branch votes are blocking from the interpreted program's point of view. The runtime calls the local VibeThink server synchronously, then continues the current branch, including inside ordinary non-`async` functions and recursive functions.
+
 ## What This Enables
 
 Not reliability.
@@ -214,4 +216,4 @@ Or:
 await execute(code, null, { vibethinkConditionals: false });
 ```
 
-Sync interpreter calls cannot use VibeThink conditionals. Use `execute()`, which switches to async evaluation when the branch oracle is enabled.
+The branch oracle blocks the interpreter while it waits for VibeThink. That is intentional: the interpreted JavaScript remains conceptually synchronous even though the host process is consulting a local model.
